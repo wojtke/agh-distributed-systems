@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package stock_exchange;
+
+service StockExchange {
+  rpc Subscribe (SubRequest) returns (stream StockDataResponse);
+  rpc SubscribeOnPctChange (SubPctChangeRequest) returns (stream StockDataResponse);
+  rpc Ping (Empty) returns (Empty);
+}
+
+message Empty {}
+
+message SubRequest {
+  repeated string symbols = 1;
+}
+
+message SubPctChangeRequest {
+  repeated string symbols = 1;
+  double pct_change = 2;
+}
+
+message Offer {
+  double price = 1;
+  int32 quantity = 2;
+}
+
+enum Currency {
+  USD = 0;
+  EUR = 1;
+  GBP = 2;
+  JPY = 3;
+}
+
+message StockData {
+  string symbol = 1;
+  string company_name = 2;
+  double price = 3;
+  int32 volume = 4;
+  int64 timestamp = 5;
+  repeated Offer best_bid_offers = 6;
+  repeated Offer best_ask_offers = 7;
+  Currency currency = 8;
+  double pct_change = 9;
+}
+
+message StockDataResponse {
+  map<string, StockData> data = 1;
+}
+
