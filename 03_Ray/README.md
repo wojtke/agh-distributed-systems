@@ -24,3 +24,17 @@ By default:
 
 - The head node will be accessible at [`localhost:10001`](http://localhost:10001).
 - The dashboard will be accessible at [`localhost:8265`](http://localhost:8265).
+
+
+Example of a .env file:
+
+```
+HOST=localhost
+RAY_IMAGE=rayproject/ray:latest
+REDISPORT=6379
+DASHBOARDPORT=8265
+HEADNODEPORT=10001
+REDISPASSWORD=yourpassword
+NUM_WORKERS=4
+NUM_CPU_WORKER=1
+```
