@@ -1,9 +1,9 @@
+import random
 import time
 
 from config import service_queues
 import pika
 import argparse
-
 
 class Carrier:
     def __init__(
@@ -19,50 +19,77 @@ class Carrier:
         self.cargo_transport = cargo_transport
         self.satellite_deployment = satellite_deployment
 
-        self.channel = pika.BlockingConnection(pika.ConnectionParameters(host="localhost")).channel()
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
+        self.channel = self.connection.channel()
+
+        self.channel.exchange_declare(exchange='SPACE_SERVICES', exchange_type='topic')
+
+        self.queue = self.channel.queue_declare(queue='', exclusive=True).method.queue
 
     def run(self):
+        self.channel.queue_bind(exchange='SPACE_SERVICES', queue=self.queue, routing_key='admin')
+        self.channel.basic_consume(
+            queue=self.queue,
+            on_message_callback=self.handle_admin_message,
+            auto_ack=True
+        )
+
         if self.people_transport:
-            self.channel.queue_declare(queue="PEOPLE_TRANSPORT")
-            self.channel.basic_consume(
-                queue="PEOPLE_TRANSPORT",
-                on_message_callback=self.handle_people_transport,
-            )
+            q = self.channel.queue_declare(queue='PEOPLE_TRANSPORT', exclusive=False).method.queue
+            self.channel.queue_bind(exchange='SPACE_SERVICES', queue=q,
+                                    routing_key='request.*.PEOPLE_TRANSPORT')
 
+            self.channel.basic_consume(
+                queue=q,
+                on_message_callback=self.handle_service_request,
+                auto_ack=False
+            )
         if self.cargo_transport:
-            self.channel.queue_declare(queue="CARGO_TRANSPORT")
-            self.channel.basic_consume(
-                queue="CARGO_TRANSPORT",
-                on_message_callback=self.handle_cargo_transport,
-            )
+            q = self.channel.queue_declare(queue='CARGO_TRANSPORT', exclusive=False).method.queue
+            self.channel.queue_bind(exchange='SPACE_SERVICES', queue=q,
+                                    routing_key='request.*.CARGO_TRANSPORT')
 
+            self.channel.basic_consume(
+                queue=q,
+                on_message_callback=self.handle_service_request,
+                auto_ack=False
+            )
         if self.satellite_deployment:
-            self.channel.queue_declare(queue="SATELLITE_DEPLOYMENT")
+            q = self.channel.queue_declare(queue='SATELLITE_DEPLOYMENT', exclusive=False).method.queue
+            self.channel.queue_bind(exchange='SPACE_SERVICES', queue=q,
+                                    routing_key='request.*.SATELLITE_DEPLOYMENT')
+
             self.channel.basic_consume(
-                queue="SATELLITE_DEPLOYMENT",
-                on_message_callback=self.handle_satellite_deployment,
+                queue=q,
+                on_message_callback=self.handle_service_request,
+                auto_ack=False
             )
 
+        self.channel.basic_qos(prefetch_count=1)
         self.channel.start_consuming()
 
-    def handle_people_transport(self, channel, method, properties, body):
-        print(f"Carrier {self.name}: Received people transport request {body.decode()}")
-        channel.basic_ack(delivery_tag=method.delivery_tag)
-        time.sleep(2)
+    def handle_admin_message(self, channel, method, properties, body):
+        print(f"Admin msg: [{body.decode()}]")
 
-    def handle_cargo_transport(self, channel, method, properties, body):
-        print(f"Carrier {self.name}: Received cargo transport request {body.decode()}")
+    def handle_service_request(self, channel, method, properties, body):
+        print(f"{self.name}: Received message [{body.decode()}]")
         channel.basic_ack(delivery_tag=method.delivery_tag)
-        time.sleep(2)
+        time.sleep(1)
 
-    def handle_satellite_deployment(self, channel, method, properties, body):
-        print(f"Carrier {self.name}: Received satellite deployment request {body.decode()}")
-        channel.basic_ack(delivery_tag=method.delivery_tag)
-        time.sleep(2)
+        agency_name = method.routing_key.split('.')[1]
+        service = method.routing_key.split('.')[2]
+        res = body.decode("utf-8") + " handled by " + self.name
+        self.channel.basic_publish(
+            exchange='SPACE_SERVICES',
+            routing_key=f'response.{agency_name}.{service}',
+            body=res.encode("utf-8")
+        )
+
+        print(f"{self.name}: Sent response [{res}] to {agency_name}")
 
     def __del__(self):
         self.channel.close()
-        print(f"Carrier {self.name}: Closed connection to the broker")
+        print(f"{self.name}: Closed connection to the broker")
 
 
 if __name__ == "__main__":

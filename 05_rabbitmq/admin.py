@@ -1,38 +1,59 @@
+import time
+
 from config import exchange_name
 import pika
 from threading import Thread
 
-
-class Administrator:
-    def __init__(self):
+class PublisherThread(Thread):
+    def __init__(self, routing_key, message):
+        Thread.__init__(self)
         self.connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
         self.channel = self.connection.channel()
 
-        self.channel.queue_declare(queue="admin_queue")
-        self.channel.queue_bind(exchange=exchange_name, queue="admin_queue", routing_key="admin_queue")
-        self.channel.basic_consume(
-            queue="admin_queue",
-            on_message_callback=self.handle_admin_message,
-            auto_ack=True,
-        )
+        self.channel.exchange_declare(exchange='SPACE_SERVICES', exchange_type='topic')
 
-    def cli(self):
-        while True:
-            print("Enter message to send to all agencies:")
-            message = input(">")
-            self.channel.basic_publish(exchange=exchange_name, routing_key="admin_queue", body=message.encode())
+        self.routing_key = routing_key
+        self.message = message
 
     def run(self):
-        Thread(target=self.cli).start()
+        while True:
+            self.channel.basic_publish(
+                exchange=exchange_name,
+                routing_key=self.routing_key,
+                body=self.message.encode("utf-8")
+            )
+            time.sleep(5)
+
+
+class SubscriberThread(Thread):
+    def __init__(self, routing_key):
+        Thread.__init__(self)
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host="localhost"))
+        self.channel = self.connection.channel()
+
+        self.channel.exchange_declare(exchange='SPACE_SERVICES', exchange_type='topic')
+
+        self.routing_key = routing_key
+
+    def run(self):
+        queue = self.channel.queue_declare(queue='', exclusive=True).method.queue
+        self.channel.queue_bind(exchange=exchange_name, queue=queue, routing_key=self.routing_key)
+        self.channel.basic_consume(queue=queue, on_message_callback=self.handle_message, auto_ack=True)
         self.channel.start_consuming()
 
-    def handle_admin_message(self, channel, method, properties, body):
-        print(f"Administrator: Received admin message: {body.decode()}")
+    def handle_message(self, channel, method, properties, body):
+        print(f"Received message: {body.decode()}")
 
-    def __del__(self):
-        self.channel.close()
-        self.connection.close()
-        print("Administrator: Closed connection to the broker")
+class Administrator:
+    def __init__(self):
+        self.pub = PublisherThread("admin", "some admin message")
+        self.sub = SubscriberThread("#")
+
+    def run(self):
+        self.pub.start()
+        self.sub.start()
+        self.pub.join()
+        self.sub.join()
 
 
 if __name__ == "__main__":
