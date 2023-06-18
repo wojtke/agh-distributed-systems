@@ -1,10 +1,11 @@
+import argparse
 import random
 import time
 from threading import Thread
 
-from config import exchange_name, service_queues
 import pika
-import argparse
+
+from config import service_queues
 
 
 class PublisherThread(Thread):

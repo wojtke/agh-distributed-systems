@@ -1,17 +1,16 @@
-import random
+import argparse
 import time
 
-from config import service_queues
 import pika
-import argparse
+
 
 class Carrier:
     def __init__(
-        self,
-        name: str,
-        people_transport: bool,
-        cargo_transport: bool,
-        satellite_deployment: bool,
+            self,
+            name: str,
+            people_transport: bool,
+            cargo_transport: bool,
+            satellite_deployment: bool,
     ):
         self.name = name
 

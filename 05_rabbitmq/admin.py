@@ -1,8 +1,10 @@
 import time
+from threading import Thread
+
+import pika
 
 from config import exchange_name
-import pika
-from threading import Thread
+
 
 class PublisherThread(Thread):
     def __init__(self, routing_key, message):
@@ -44,6 +46,7 @@ class SubscriberThread(Thread):
     def handle_message(self, channel, method, properties, body):
         print(f"Received message: {body.decode()}")
 
+
 class Administrator:
     def __init__(self):
         self.pub = PublisherThread("admin", "some admin message")
@@ -59,4 +62,3 @@ class Administrator:
 if __name__ == "__main__":
     administrator = Administrator()
     administrator.run()
-

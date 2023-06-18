@@ -14,11 +14,9 @@ channel = connection.channel()
 
 channel.exchange_declare(exchange=exchange_name, exchange_type="direct")
 
-
 for queue_name in service_queues.values():
     channel.queue_declare(queue=queue_name)
     channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=queue_name)
-
 
 # Example usage
 if __name__ == "__main__":
